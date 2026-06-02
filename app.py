@@ -281,11 +281,27 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
                 "A bench player on a non-European club might sit around "
                 "10-15 appearances and 600-1,200 minutes."
             )
+        pos_choice = st.sidebar.selectbox(
+            "Position context (reference stats and comparable players)",
+            ["All positions", "FW", "MF", "DF", "GK"],
+            help=(
+                "The model itself does not use position as a feature, so the "
+                "predicted value is the same. This selector only changes which "
+                "subset of the dataset is used for the reference medians and "
+                "the comparable-player list."
+            ),
+        )
+        if pos_choice != "All positions":
+            ref_df = df[df["pos_group"] == pos_choice]
+            ref_label = f"{pos_choice}s"
+        else:
+            ref_df = df
+            ref_label = "all players"
         defaults = {"age": 25, "appearances": 30, "goals": 5, "assists": 3, "minutes": 2400, "yellow_cards": 4, "red_cards": 0}
         ranges = {"age": (16, 42, 1), "appearances": (0, 80, 1), "goals": (0, 55, 1), "assists": (0, 30, 1),
                   "minutes": (0, 6000, 50), "yellow_cards": (0, 15, 1), "red_cards": (0, 4, 1)}
-        medians = {f: int(round(df[f].median())) for f in features}
-        means = {f: df[f].mean() for f in features}
+        medians = {f: int(round(ref_df[f].median())) for f in features}
+        means = {f: ref_df[f].mean() for f in features}
         input_features = []
         for f in features:
             lo, hi, step = ranges[f]
@@ -294,10 +310,16 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
             )))
             med_str = f"{medians[f]:,}" if f == "minutes" else f"{medians[f]}"
             mean_str = f"{means[f]:,.0f}" if f == "minutes" else f"{means[f]:.1f}"
-            st.sidebar.caption(f"Dataset median: **{med_str}** · mean: {mean_str}")
+            st.sidebar.caption(f"Median across {ref_label}: **{med_str}** · mean: {mean_str}")
         actual_value = None
         player_name = "Custom player"
-        player_meta = "Manual input"
+        player_meta = f"Manual input · reference: {ref_label}"
+
+    # ref_df is the dataset slice used for medians, distribution and similar
+    # players. In Custom mode it can be narrowed to one position group.
+    if 'ref_df' not in locals():
+        ref_df = df
+        ref_label = "all players"
 
     pred_value, _lo, _hi, _conf = predict_with_interval(bundle, input_features)
     shap_df, base_eur, _ = shap_contributions(explainer, input_features, features)
@@ -319,19 +341,20 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
         c2.metric("Actual value", fmt_money(actual_value),
                   delta=f"{sign}{fmt_money(delta)} predicted - actual")
     else:
-        median_value = float(df["market_value"].median())
+        median_value = float(ref_df["market_value"].median())
+        mean_value = float(ref_df["market_value"].mean())
         delta = pred_value - median_value
         sign = "+" if delta >= 0 else ""
         c1, c2, c3 = st.columns(3)
         c1.metric("Predicted value", fmt_money(pred_value))
-        c2.metric("Dataset median",
+        c2.metric(f"Median ({ref_label})",
                   fmt_money(median_value),
                   delta=f"{sign}{fmt_money(delta)} vs median",
                   delta_color="off",
-                  help=f"Median market value across all {len(df):,} players.")
-        c3.metric("Dataset mean",
-                  fmt_money(float(df["market_value"].mean())),
-                  help=f"Mean market value across all {len(df):,} players.")
+                  help=f"Median market value across {len(ref_df):,} {ref_label}.")
+        c3.metric(f"Mean ({ref_label})",
+                  fmt_money(mean_value),
+                  help=f"Mean market value across {len(ref_df):,} {ref_label}.")
 
     # ---- API parity check (auto, in-page) ----
     if api_result and "prediction" in api_result:
@@ -373,10 +396,10 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
     st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Where does this rank?")
-    pct = float((df["market_value"] < pred_value).mean() * 100)
-    st.caption(f"Sits at the **{pct:.0f}th percentile** of {len(df):,} players in the dataset.")
+    pct = float((ref_df["market_value"] < pred_value).mean() * 100)
+    st.caption(f"Sits at the **{pct:.0f}th percentile** of {len(ref_df):,} {ref_label} in the dataset.")
     hist_fig = go.Figure()
-    hist_fig.add_trace(go.Histogram(x=df["market_value"] * _FX_RATE / 1e6, nbinsx=60, marker_color="#cbd5e1"))
+    hist_fig.add_trace(go.Histogram(x=ref_df["market_value"] * _FX_RATE / 1e6, nbinsx=60, marker_color="#cbd5e1"))
     hist_fig.add_vline(x=pred_value * _FX_RATE / 1e6, line_color="#1f77b4", line_width=3, annotation_text="Predicted")
     if actual_value is not None:
         hist_fig.add_vline(x=actual_value * _FX_RATE / 1e6, line_color="#d9534f", line_dash="dash", line_width=2, annotation_text="Actual")
@@ -384,8 +407,8 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
                            showlegend=False, margin=dict(l=0, r=10, t=10, b=10))
     st.plotly_chart(hist_fig, use_container_width=True)
 
-    st.subheader("Most similar players in the dataset")
-    sim = find_similar(df, input_features, features, k=5)
+    st.subheader(f"Most similar players ({ref_label})")
+    sim = find_similar(ref_df, input_features, features, k=5)
     sim["market_value"] = sim["market_value"].apply(fmt_money)
     has_logo = "logo_url" in sim.columns
     if has_logo:
