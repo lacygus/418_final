@@ -18,20 +18,7 @@ import shap
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
-import plotly.io as pio
 from sklearn.metrics import mean_absolute_error, r2_score
-
-# Make Plotly figures match the Streamlit dark theme.
-pio.templates["dark_streamlit"] = go.layout.Template(
-    layout=go.Layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#fafafa"),
-        xaxis=dict(gridcolor="#2a2e36", zerolinecolor="#2a2e36"),
-        yaxis=dict(gridcolor="#2a2e36", zerolinecolor="#2a2e36"),
-    )
-)
-pio.templates.default = "plotly_dark+dark_streamlit"
 
 API_URL = os.environ.get("API_URL", "https://market-value-api-348858993647.us-central1.run.app")
 DATA_PATH = "data/processed/model_dataset.csv"
