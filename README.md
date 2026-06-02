@@ -5,7 +5,7 @@ what's driving each prediction. STAT 418 final project.
 
 ## Live services
 
-- **Web app (Streamlit):** _deployment in progress — link to follow_
+- **Web app (Streamlit):** https://418final-uxdflcbiixufvv9rpxytej.streamlit.app/
 - **Prediction API (Cloud Run):** https://market-value-api-348858993647.us-central1.run.app
 - **API docs (Swagger UI):** https://market-value-api-348858993647.us-central1.run.app/docs
 
