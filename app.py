@@ -306,15 +306,27 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
 
     st.header(player_name)
     st.caption(player_meta)
-    c1, c2 = st.columns(2)
-    c1.metric("Predicted value", fmt_money(pred_value))
     if actual_value is not None:
+        c1, c2 = st.columns(2)
+        c1.metric("Predicted value", fmt_money(pred_value))
         delta = pred_value - actual_value
         sign = "+" if delta >= 0 else ""
         c2.metric("Actual value", fmt_money(actual_value),
                   delta=f"{sign}{fmt_money(delta)} predicted - actual")
     else:
-        c2.metric("Dataset baseline", fmt_money(base_eur))
+        median_value = float(df["market_value"].median())
+        delta = pred_value - median_value
+        sign = "+" if delta >= 0 else ""
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Predicted value", fmt_money(pred_value))
+        c2.metric("Dataset median",
+                  fmt_money(median_value),
+                  delta=f"{sign}{fmt_money(delta)} vs median",
+                  delta_color="off",
+                  help=f"Median market value across all {len(df):,} players.")
+        c3.metric("Dataset mean",
+                  fmt_money(float(df["market_value"].mean())),
+                  help=f"Mean market value across all {len(df):,} players.")
 
     # ---- API parity check (auto, in-page) ----
     if api_result and "prediction" in api_result:
