@@ -62,8 +62,8 @@ FEATURE_HELP = {
 POSITION_GROUPS = ["GK", "DF", "MF", "FW"]
 
 st.set_page_config(
-    page_title="Player Market Value Scout",
-    page_icon="⚽",
+    page_title="Player Market Value Prediction",
+    page_icon="📈",
     layout="wide",
 )
 
@@ -220,11 +220,11 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
     """Single-player scouting view with search."""
     features = bundle["features"]
 
-    st.sidebar.header("Input")
-    mode = st.sidebar.radio("Mode", ["Pick a player", "Custom stats"])
+    st.sidebar.markdown("### 1. Choose a player")
+    mode = st.sidebar.radio("Mode", ["Pick a player", "Custom stats"], label_visibility="collapsed")
 
     if mode == "Pick a player":
-        search = st.sidebar.text_input("🔎 Search by name", placeholder="e.g. Haaland, Mbappe").strip()
+        search = st.sidebar.text_input("Search by name", placeholder="e.g. Haaland, Mbappe").strip()
         if search:
             matches = df[df["player"].str.contains(search, case=False, na=False)]
             matches = matches.sort_values("market_value", ascending=False)
@@ -248,7 +248,7 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
         player_meta = f"{row['club']} · {row['position']} · {row['league']}"
     else:
         st.sidebar.markdown("Move the sliders to build a player profile:")
-        with st.sidebar.expander("ℹ️ What do these stats mean?", expanded=False):
+        with st.sidebar.expander("What do these stats mean?", expanded=False):
             st.markdown(
                 "All counts are across **every competition** this season — league, "
                 "domestic cup, European competition, and national team. Useful "
@@ -277,9 +277,9 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
         player_meta = "Manual input"
 
     st.sidebar.divider()
-    st.sidebar.subheader("Cloud Run API check")
-    api_key = st.sidebar.text_input("API key (optional)", type="password")
-    if st.sidebar.button("Compare local vs API"):
+    st.sidebar.markdown("### 2. Verify against deployed API (optional)")
+    api_key = st.sidebar.text_input("API key", type="password", placeholder="Paste your API key")
+    if st.sidebar.button("Compare local vs API", use_container_width=True):
         if not api_key:
             st.sidebar.warning("Enter an API key to call the deployed API.")
         else:
@@ -295,7 +295,7 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
 
     warnings = out_of_range_warning(input_features, df, features)
     if warnings:
-        st.warning("⚠️ Some inputs are outside the training data range — predictions are extrapolations:\n\n- " + "\n- ".join(warnings))
+        st.warning("Some inputs are outside the training data range — predictions are extrapolations:\n\n- " + "\n- ".join(warnings))
 
     st.header(player_name)
     st.caption(player_meta)
@@ -400,11 +400,11 @@ def tab_movers(df_pred: pd.DataFrame):
     col_cfg = {"": st.column_config.ImageColumn("", width="small")} if has_logo else None
     col_u, col_o = st.columns(2)
     with col_u:
-        st.markdown("**🟦 Top 10 undervalued** (predicted >> actual)")
+        st.markdown("**Top 10 undervalued** &nbsp;·&nbsp; predicted &gt; actual")
         st.dataframe(fmt_table(view.nlargest(10, "delta")), hide_index=True,
                      use_container_width=True, column_config=col_cfg)
     with col_o:
-        st.markdown("**🟥 Top 10 overvalued** (predicted << actual)")
+        st.markdown("**Top 10 overvalued** &nbsp;·&nbsp; predicted &lt; actual")
         st.dataframe(fmt_table(view.nsmallest(10, "delta")), hide_index=True,
                      use_container_width=True, column_config=col_cfg)
 
@@ -416,7 +416,7 @@ def tab_movers(df_pred: pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True)
 
     csv = view[["player", "club", "league", "pos_group", "age", "market_value", "predicted_value", "delta"]].to_csv(index=False)
-    st.download_button("⬇️ Download filtered predictions (CSV)", csv,
+    st.download_button("Download filtered predictions (CSV)", csv,
                        file_name="market_movers.csv", mime="text/csv")
 
 
@@ -510,7 +510,7 @@ def tab_leaderboards(df_pred: pd.DataFrame):
         )
 
     csv = df_pred[["player", "club", "league", "pos_group", "age", "market_value", "predicted_value"]].to_csv(index=False)
-    st.download_button("⬇️ Download full predictions (CSV)", csv,
+    st.download_button("Download full predictions (CSV)", csv,
                        file_name="all_predictions.csv", mime="text/csv")
 
 
@@ -653,15 +653,22 @@ def main() -> None:
     df = load_dataset()
     df_pred = compute_all_predictions(bundle, df)
 
-    st.title("⚽ Player Market Value Scout")
-    st.caption(
-        f"Predicting market values for {len(df):,} players from the top 5 European leagues. "
-        f"Test R² = {bundle['metrics']['r2']}, MAE = {fmt_money(bundle['metrics']['mae_eur'])}. "
-        f"Data: {DATA_PERIOD}."
+    st.markdown("# Player Market Value Prediction")
+    st.markdown(
+        f"A RandomForest model predicts a player's market value from seven per-season "
+        f"match stats and attributes each prediction with SHAP. "
+        f"Trained on **{len(df):,} players** from the top 5 European leagues. "
+        f"Test **R² = {bundle['metrics']['r2']}**, **MAE = {fmt_money(bundle['metrics']['mae_eur'])}**."
+    )
+
+    st.info(
+        "Search or pick a player in **Scout a Player** to see their predicted value and "
+        "the features driving it. Use **Market Movers** to see who the model thinks is "
+        "over- or under-valued, or **Leaderboards** to compare leagues and clubs."
     )
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["🔎 Scout a Player", "📈 Market Movers", "🏆 Leaderboards", "📊 Model Performance", "ℹ️ About"]
+        ["Scout a Player", "Market Movers", "Leaderboards", "Model Performance", "About"]
     )
 
     with tab1:
