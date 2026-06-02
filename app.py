@@ -284,12 +284,17 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
         defaults = {"age": 25, "appearances": 30, "goals": 5, "assists": 3, "minutes": 2400, "yellow_cards": 4, "red_cards": 0}
         ranges = {"age": (16, 42, 1), "appearances": (0, 80, 1), "goals": (0, 55, 1), "assists": (0, 30, 1),
                   "minutes": (0, 6000, 50), "yellow_cards": (0, 15, 1), "red_cards": (0, 4, 1)}
+        medians = {f: int(round(df[f].median())) for f in features}
+        means = {f: df[f].mean() for f in features}
         input_features = []
         for f in features:
             lo, hi, step = ranges[f]
             input_features.append(float(st.sidebar.slider(
                 FEATURE_LABELS[f], lo, hi, defaults[f], step, help=FEATURE_HELP[f]
             )))
+            med_str = f"{medians[f]:,}" if f == "minutes" else f"{medians[f]}"
+            mean_str = f"{means[f]:,.0f}" if f == "minutes" else f"{means[f]:.1f}"
+            st.sidebar.caption(f"Dataset median: **{med_str}** · mean: {mean_str}")
         actual_value = None
         player_name = "Custom player"
         player_meta = "Manual input"
