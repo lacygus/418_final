@@ -294,7 +294,7 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
         player_name = "Custom player"
         player_meta = "Manual input"
 
-    pred_value, lo, hi, confidence = predict_with_interval(bundle, input_features)
+    pred_value, _lo, _hi, _conf = predict_with_interval(bundle, input_features)
     shap_df, base_eur, _ = shap_contributions(explainer, input_features, features)
 
     # Verify the same input against the deployed Cloud Run API.
@@ -306,18 +306,15 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
 
     st.header(player_name)
     st.caption(player_meta)
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Predicted value", fmt_money(pred_value),
-              help=f"80% prediction interval: {fmt_money(lo)} to {fmt_money(hi)}")
-    c2.metric("80% range", f"{fmt_money(lo)} — {fmt_money(hi)}",
-              help=f"Tree-agreement confidence: {confidence:.2f}")
+    c1, c2 = st.columns(2)
+    c1.metric("Predicted value", fmt_money(pred_value))
     if actual_value is not None:
         delta = pred_value - actual_value
         sign = "+" if delta >= 0 else ""
-        c3.metric("Actual value", fmt_money(actual_value),
+        c2.metric("Actual value", fmt_money(actual_value),
                   delta=f"{sign}{fmt_money(delta)} predicted - actual")
     else:
-        c3.metric("Dataset baseline", fmt_money(base_eur))
+        c2.metric("Dataset baseline", fmt_money(base_eur))
 
     # ---- API parity check (auto, in-page) ----
     if api_result and "prediction" in api_result:
@@ -636,9 +633,7 @@ log(market value). Held-out test R² = **{bundle['metrics']['r2']:.2f}**,
 MAE = **{fmt_money(bundle['metrics']['mae_eur'])}**.
 
 **Explanation.** SHAP values decompose each prediction into per-feature
-contributions in EUR, relative to the dataset baseline. Each tree in the
-forest gives its own prediction; the spread of those predictions is what
-the app reports as the 80% prediction interval and confidence.
+contributions in USD, relative to the dataset baseline.
 """)
 
     st.subheader("Architecture")
@@ -662,8 +657,6 @@ the app reports as the 80% prediction interval and confidence.
   stats can explain, not the rest.
 - **Snapshot.** Market values move with the transfer window. The
   numbers in the app reflect the scrape date and will drift over time.
-- **Confidence ≠ probability.** The 80% range comes from the forest's
-  trees disagreeing, not from a calibrated probability model.
 """)
 
     st.subheader("Code")
