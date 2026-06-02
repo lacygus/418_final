@@ -1,0 +1,12 @@
+.git
+.env
+__pycache__
+*.pyc
+.pytest_cache
+.venv
+*.pptx
+*.pdf
+tests/
+train_model.py
+README.md
+API_DOCUMENTATION.md

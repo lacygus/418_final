@@ -1,0 +1,20 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+logs/
+
+# raw scrapes are reproducible from scripts/ -- only ship the processed dataset
+data/raw/
+data/processed/players.csv
+data/processed/players_full.csv
+data/processed/players_with_sofifa.csv
+
+# slides folder is for working drafts
+slides/*.pptx
+slides/~$*
+
+# model.pkl is large but required by app -- override the parent *.pkl ignore
+!model.pkl
+!api/model.pkl
