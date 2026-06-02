@@ -21,12 +21,24 @@ import plotly.graph_objects as go
 from sklearn.metrics import mean_absolute_error, r2_score
 
 API_URL = os.environ.get("API_URL", "https://market-value-api-348858993647.us-central1.run.app")
+# This API key is intentionally bundled — it's a class-project key, already
+# disclosed in the course submission. Streamlit Cloud users can override it
+# via `st.secrets["API_KEY"]` if they want their own.
+DEFAULT_API_KEY = "mjyapuBCPAtnQlU41gx7K8XfIhRTrN9i"
 DATA_PATH = "data/processed/model_dataset.csv"
 MODEL_PATH = "model.pkl"
 DATA_PERIOD = "2025-26 season (Transfermarkt snapshot, scraped late 2025)"
 
 # Fallback FX rate if the live fetch fails. Updated alongside data scrapes.
 EUR_USD_FALLBACK = 1.17
+
+
+def get_api_key() -> str:
+    """Read API key from Streamlit secrets if set, otherwise use the bundled default."""
+    try:
+        return st.secrets.get("API_KEY", DEFAULT_API_KEY)
+    except (FileNotFoundError, KeyError):
+        return DEFAULT_API_KEY
 
 FEATURE_LABELS = {
     "age": "Age",
@@ -156,6 +168,12 @@ def predict_api(features: List[float], api_key: str) -> dict | None:
         return {"error": str(e)}
 
 
+@st.cache_data(ttl=300)
+def predict_api_cached(features_tuple: tuple) -> dict:
+    """Cached wrapper around predict_api so identical inputs hit the API once."""
+    return predict_api(list(features_tuple), get_api_key())
+
+
 def shap_contributions(explainer, features: List[float], feature_names: List[str]):
     """Return per-feature contributions in EUR plus base and predicted EUR."""
     X = np.asarray(features, dtype=float).reshape(1, -1)
@@ -276,22 +294,11 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
         player_name = "Custom player"
         player_meta = "Manual input"
 
-    st.sidebar.divider()
-    st.sidebar.markdown("### 2. Verify against deployed API (optional)")
-    api_key = st.sidebar.text_input("API key", type="password", placeholder="Paste your API key")
-    if st.sidebar.button("Compare local vs API", use_container_width=True):
-        if not api_key:
-            st.sidebar.warning("Enter an API key to call the deployed API.")
-        else:
-            result = predict_api(input_features, api_key)
-            if "error" in result:
-                st.sidebar.error(f"API: {result['error']}")
-            else:
-                st.sidebar.success(f"API predicted {fmt_money(result['prediction'])}")
-                st.sidebar.caption(f"request_id: {result['request_id'][:8]}…")
-
     pred_value, lo, hi, confidence = predict_with_interval(bundle, input_features)
     shap_df, base_eur, _ = shap_contributions(explainer, input_features, features)
+
+    # Verify the same input against the deployed Cloud Run API.
+    api_result = predict_api_cached(tuple(input_features))
 
     warnings = out_of_range_warning(input_features, df, features)
     if warnings:
@@ -311,6 +318,31 @@ def tab_scout(df: pd.DataFrame, bundle, explainer):
                   delta=f"{sign}{fmt_money(delta)} predicted - actual")
     else:
         c3.metric("Dataset baseline", fmt_money(base_eur))
+
+    # ---- API parity check (auto, in-page) ----
+    if api_result and "prediction" in api_result:
+        api_val = float(api_result["prediction"])
+        match = abs(api_val - pred_value) <= max(pred_value * 0.001, 100.0)
+        req_id = str(api_result.get("request_id", ""))[:8]
+        if match:
+            st.success(
+                f"Verified against deployed Cloud Run API — same input returns "
+                f"**{fmt_money(api_val)}** "
+                f"({API_URL.split('//')[1]} · request `{req_id}`).",
+                icon="✅",
+            )
+        else:
+            st.warning(
+                f"API returned **{fmt_money(api_val)}** but the in-app model returned "
+                f"**{fmt_money(pred_value)}**. They should normally agree.",
+                icon="⚠️",
+            )
+    elif api_result and "error" in api_result:
+        st.info(
+            f"Deployed API not reachable right now ({api_result['error']}). "
+            f"In-app prediction shown above.",
+            icon="ℹ️",
+        )
 
     st.subheader("What's driving this value?")
     st.caption("Bars to the right pull the value up; bars to the left pull it down.")
